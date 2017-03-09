@@ -22,13 +22,11 @@ var formatTableName = function(migration, options) {
 };
 
 var partitionArrayBySize = function(array, chunkSize, tableName) {
-	const result = []
-	let i;
-	let j;
+	var result = []
+	var i, j;
 	for (i=0,j=array.length; i<j; i+=chunkSize) {
-		console.log(`Slicing(i=${i}, j=${j}, length=${array.length}`);
-		const batchSlice = array.slice(i, i + chunkSize);
-		const params = {
+		var batchSlice = array.slice(i, i + chunkSize);
+		var params = {
 			RequestItems: {}
 		};
 		params.RequestItems[tableName] = batchSlice;
@@ -51,13 +49,13 @@ var runSeeds = function(dynamodb, migration) {
 				}
 			};
 		});
-		const batchChunks = partitionArrayBySize(batchSeeds, 25, migration.Table.TableName);
+		var batchChunks = partitionArrayBySize(batchSeeds, 25, migration.Table.TableName);
 		console.log(batchChunks);
 		return new BbPromise(function(resolve, reject) {
 			var interval = 0,
 				execute = function(interval) {
 					setTimeout(function() {
-						batchChunks.forEach(chunk => {
+						batchChunks.forEach(function(chunk) {
 							dynamodb.doc.batchWrite(chunk, function(err) {
 								if (err) {
 									if (err.code === "ResourceNotFoundException" && interval <= 5000) {
