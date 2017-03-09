@@ -21,45 +21,61 @@ var formatTableName = function(migration, options) {
     return options.tablePrefix + migration.Table.TableName + options.tableSuffix;
 };
 
+var partitionArrayBySize = function(array, chunkSize, tableName) {
+	const result = []
+	let i;
+	let j;
+	for (i=0,j=array.length; i<j; i+=chunkSize) {
+		console.log(`Slicing(i=${i}, j=${j}, length=${array.length}`);
+		const batchSlice = array.slice(i, i + chunkSize);
+		const params = {
+			RequestItems: {}
+		};
+		params.RequestItems[tableName] = batchSlice;
+		result.push(params);
+	}
+
+	return result;
+};
+
 var runSeeds = function(dynamodb, migration) {
-    if (!migration.Seeds || !migration.Seeds.length) {
-        return new BbPromise(function(resolve) {
-            resolve(migration);
-        });
-    } else {
-        var params,
-            batchSeeds = migration.Seeds.map(function(seed) {
-                return {
-                    PutRequest: {
-                        Item: seed
-                    }
-                };
-            });
-        params = {
-            RequestItems: {}
-        };
-        params.RequestItems[migration.Table.TableName] = batchSeeds;
-        return new BbPromise(function(resolve, reject) {
-            var interval = 0,
-                execute = function(interval) {
-                    setTimeout(function() {
-                        dynamodb.doc.batchWrite(params, function(err) {
-                            if (err) {
-                                if (err.code === "ResourceNotFoundException" && interval <= 5000) {
-                                    execute(interval + 1000);
-                                } else {
-                                    reject(err);
-                                }
-                            } else {
-                                console.log("Seed running complete for table: " + migration.Table.TableName);
-                                resolve(migration);
-                            }
-                        });
-                    }, interval);
-                };
-            execute(interval);
-        });
-    }
+	if (!migration.Seeds || !migration.Seeds.length) {
+		return new BbPromise(function(resolve) {
+			resolve(migration);
+		});
+	} else {
+		var batchSeeds = migration.Seeds.map(function(seed) {
+			return {
+				PutRequest: {
+					Item: seed
+				}
+			};
+		});
+		const batchChunks = partitionArrayBySize(batchSeeds, 25, migration.Table.TableName);
+		console.log(batchChunks);
+		return new BbPromise(function(resolve, reject) {
+			var interval = 0,
+				execute = function(interval) {
+					setTimeout(function() {
+						batchChunks.forEach(chunk => {
+							dynamodb.doc.batchWrite(chunk, function(err) {
+								if (err) {
+									if (err.code === "ResourceNotFoundException" && interval <= 5000) {
+										execute(interval + 1000);
+									} else {
+										console.log(err);
+										reject(err);
+									}
+								}
+							});
+						});
+						console.log("Seed running complete for table: " + migration.Table.TableName);
+						resolve(migration);
+					}, interval);
+				};
+			execute(interval);
+		});
+	}
 };
 
 var create = function(migrationName, options) {
