@@ -50,7 +50,6 @@ var runSeeds = function(dynamodb, migration) {
 			};
 		});
 		var batchChunks = partitionArrayBySize(batchSeeds, 25, migration.Table.TableName);
-		console.log(batchChunks);
 		return new BbPromise(function(resolve, reject) {
 			var interval = 0,
 				execute = function(interval) {
